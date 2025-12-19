@@ -1,0 +1,46 @@
+{
+  "accessKeyId": "your-access-key-id",
+  "accessKeySecret": "your-access-key-secret",
+  "endpoint": "oss-***-***.aliyuncs.com",
+  "domains": [
+    {
+      "bucket": "your-bucket-name",
+      "domain": "example.com",
+      "certPath": "./certs/example.com/fullchain.pem",
+      "keyPath": "./certs/example.com/privkey.pem",
+      "certId": "*******-cn-hangzhou",
+      "previousCertId": "",
+      "generateCert": false,
+      "isWildcard": false,
+      "email": "",
+      "useAliyunDNS": true
+    },
+    {
+      "bucket": "your-bucket-name",
+      "domain": "example.org",
+      "certPath": "auto",
+      "keyPath": "auto",
+      "certId": "",
+      "previousCertId": "",
+      "generateCert": true,
+      "isWildcard": false,
+      "email": "your-email@example.com",
+      "useAliyunDNS": true,
+      "forceRenewal": false,
+      "daysBeforeExpiry": 30
+    },
+    {
+      "bucket": "your-bucket-name",
+      "domain": "example.net",
+      "certPath": "auto",
+      "keyPath": "auto",
+      "certId": "",
+      "previousCertId": "",
+      "generateCert": true,
+      "isWildcard": true,
+      "email": "your-email@example.com",
+      "useAliyunDNS": true
+    }
+  ]
+}
+

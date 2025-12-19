@@ -1,0 +1,26 @@
+{
+  "name": "auto-update-oss-ssl",
+  "version": "1.0.0",
+  "description": "自动化更新阿里云OSS自定义域名SSL证书",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node index.js --dry-run",
+    "check-dns": "node check-dns.js"
+  },
+  "keywords": [
+    "aliyun",
+    "oss",
+    "ssl",
+    "certificate",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@alicloud/alidns20150109": "^3.6.0",
+    "@alicloud/openapi-client": "^0.4.0",
+    "dotenv": "^16.3.1"
+  }
+}
