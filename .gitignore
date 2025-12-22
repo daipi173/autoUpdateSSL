@@ -4,4 +4,5 @@ node_modules/
 config.json
 temp_*.xml
 cert_config_*.xml
+.DS_Store
 
