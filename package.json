@@ -16,7 +16,7 @@
     "certificate",
     "automation"
   ],
-  "author": "",
+  "author": "xiaodaipi173",
   "license": "MIT",
   "dependencies": {
     "@alicloud/alidns20150109": "^3.6.0",
