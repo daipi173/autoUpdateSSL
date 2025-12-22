@@ -7,6 +7,13 @@ import { exec, spawn } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec); // 将 exec 函数转换为异步函数
+const DEFAULT_DAYS_BEFORE_EXPIRY = 3; // 证书过期前多少天开始更新（默认3天）
+const DEFAULT_MAX_RETRIES = 15; // 最大重试次数（默认15次）
+const DEFAULT_CERTBOT_PATH = "/etc/letsencrypt/live"; // certbot 默认证书路径
+const DEFAULT_CERTBOT_CERT_FILE = "fullchain.pem"; // certbot 默认证书文件
+const DEFAULT_CERTBOT_KEY_FILE = "privkey.pem"; // certbot 默认私钥文件
+const WAIT_TIME_FOR_DNS_RECORD_PROPAGATION = 10000; // 等待 DNS 记录生效时间（默认10秒）
+const MAX_BUFFER_SIZE = 1024 * 1024 * 10; // 最大缓冲区大小（默认10MB）
 
 /**
  * OssCertificateManager 类，用于更新 OSS SSL 证书
@@ -49,11 +56,13 @@ class OssCertificateManager {
       const parts = domain.split(".");
       const mainDomain = parts.slice(-2).join(".");
 
+      // 获取域名的 DNS 记录列表
       const request = new $Alidns20150109.DescribeDomainRecordsRequest({
         domainName: mainDomain,
       });
 
       const response = await client.describeDomainRecords(request);
+      // 返回 DNS 记录列表
       return response.body.domainRecords.record;
     } catch (error) {
       // 检查是否是权限问题
@@ -102,6 +111,7 @@ class OssCertificateManager {
 
       // 获取现有记录
       const records = await this.getDomainRecords(mainDomain);
+      // 查找是否存在相同的记录
       const existingRecord = records.find(
         (r) => r.RR === recordName && r.type === "TXT"
       );
@@ -141,13 +151,21 @@ class OssCertificateManager {
 
   /**
    * 检查 DNS TXT 记录是否已生效
+   * @param {string} domain - 域名
+   * @param {string} expectedValue - 期望的 TXT 值
+   * @param {number} maxRetries - 最大重试次数（默认15次）
    */
-  async checkDNSRecordPropagation(domain, expectedValue, maxRetries = 30) {
+  async checkDNSRecordPropagation(
+    domain,
+    expectedValue,
+    maxRetries = DEFAULT_MAX_RETRIES
+  ) {
     console.log("\n正在检查 DNS 记录是否生效...");
 
     for (let i = 0; i < maxRetries; i++) {
       try {
         const recordName = `_acme-challenge.${domain}`;
+        // 使用 dig 命令检查 DNS 记录是否生效
         const { stdout } = await execAsync(`dig ${recordName} TXT +short`);
 
         if (stdout.includes(expectedValue)) {
@@ -156,10 +174,14 @@ class OssCertificateManager {
         }
 
         console.log(`等待 DNS 记录生效... (${i + 1}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, 10000)); // 等待 10 秒
+        await new Promise((resolve) =>
+          setTimeout(resolve, WAIT_TIME_FOR_DNS_RECORD_PROPAGATION)
+        );
       } catch (error) {
         console.log(`DNS 检查失败，继续等待... (${i + 1}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, 10000));
+        await new Promise((resolve) =>
+          setTimeout(resolve, WAIT_TIME_FOR_DNS_RECORD_PROPAGATION)
+        );
       }
     }
 
@@ -219,6 +241,7 @@ class OssCertificateManager {
       const cmd = this.buildOssutilCommand(
         `ls oss://${bucket} --limited-num 1`
       );
+      // 隐藏 accessKeySecret
       const safeCmd = cmd.replace(/-k\s+\S+/, "-k ****");
       console.log("测试命令:", safeCmd);
 
@@ -229,12 +252,10 @@ class OssCertificateManager {
       return true;
     } catch (error) {
       console.error("✗ OSS 连接测试失败:");
-      console.error("错误代码:", error.code);
-      console.error("错误信息:", error.message);
+      console.error(`错误代码: ${error.code}；错误信息：${error.message}`);
       if (error.stdout) console.error("标准输出:", error.stdout);
       if (error.stderr) console.error("错误输出:", error.stderr);
 
-      // 提供更详细的故障排查建议
       console.error("\n故障排查建议:");
       console.error("1. 检查 ossutil 是否正确安装和配置");
       console.error("2. 验证 AccessKey ID 和 AccessKey Secret 是否正确");
@@ -288,15 +309,15 @@ class OssCertificateManager {
       console.log("4. DNS 记录生效后会自动继续验证\n");
 
       const args = [
-        "certonly",
-        "-d",
-        actualDomain,
-        "--manual",
-        "--preferred-challenges",
+        "certonly", // 只获取证书，不自动配置 Web 服务器（Nginx/Apache等）
+        "-d", // 指定域名
+        actualDomain, // 实际域名
+        "--manual", // 手动模式
+        "--preferred-challenges", // 指定挑战类型
         "dns",
         // 移除 --force-renewal 以避免触发 Let's Encrypt 频率限制，参考：https://letsencrypt.org/docs/rate-limits/#new-certificates-per-exact-set-of-identifiers
         // certbot 会自动判断是否需要更新证书
-        ...(email ? ["--email", email, "--agree-tos", "--no-eff-email"] : []),
+        ...(email ? ["--email", email, "--agree-tos", "--no-eff-email"] : []), // 指定邮箱地址，同意服务条款，不发送电子邮件通知
       ];
 
       return new Promise((resolve, reject) => {
@@ -324,6 +345,7 @@ class OssCertificateManager {
               text.includes("What would you like to do?"))
           ) {
             hasExistingCertPrompt = true;
+            // 这里会有两个选项，1：保留现有证书，2：重新生成并覆盖现有证书
             console.log(
               "\n检测到已有有效证书提示，自动选择保留现有证书 (选项 1)...\n"
             );
@@ -498,11 +520,12 @@ class OssCertificateManager {
    * @param {string} domain - 域名（不含通配符）
    */
   async findCertbotCertPath(domain) {
-    const basePath = "/etc/letsencrypt/live";
-    const certPath = path.join(basePath, domain, "fullchain.pem");
-    const keyPath = path.join(basePath, domain, "privkey.pem");
+    const basePath = DEFAULT_CERTBOT_PATH;
+    const certPath = path.join(basePath, domain, DEFAULT_CERTBOT_CERT_FILE);
+    const keyPath = path.join(basePath, domain, DEFAULT_CERTBOT_KEY_FILE);
 
     try {
+      // 检查证书和私钥文件是否存在，且当前进程是否有权限访问它
       await fs.access(certPath);
       await fs.access(keyPath);
 
@@ -523,7 +546,10 @@ class OssCertificateManager {
    * @param {number} daysBeforeExpiry - 过期前多少天认为需要更新（默认3天）
    * @returns {Object|null} 返回证书信息或 null
    */
-  async checkCertificateValidity(domain, daysBeforeExpiry = 3) {
+  async checkCertificateValidity(
+    domain,
+    daysBeforeExpiry = DEFAULT_DAYS_BEFORE_EXPIRY
+  ) {
     try {
       const certPaths = await this.findCertbotCertPath(domain);
       if (!certPaths) {
@@ -531,7 +557,7 @@ class OssCertificateManager {
         return null;
       }
 
-      // 使用 openssl 检查证书有效期
+      // 使用 openssl 检查证书有效期，只输出过期时间不把pem编译原文件输出
       const { stdout } = await execAsync(
         `openssl x509 -in ${certPaths.certPath} -noout -enddate`
       );
@@ -672,54 +698,6 @@ class OssCertificateManager {
   }
 
   /**
-   * 创建 CnameToken（如果需要）
-   */
-  async createCnameToken(bucket, domain) {
-    try {
-      console.log(`\n正在为域名 ${domain} 创建 CnameToken...`);
-      // 新版本 ossutil 命令格式
-      const cmd = this.buildOssutilCommand(
-        `bucket-cname --method put --item=token oss://${bucket} ${domain}`
-      );
-
-      const { stdout, stderr } = await execAsync(cmd);
-      console.log("✓ CnameToken 创建成功:");
-      console.log(stdout);
-
-      if (stderr) {
-        console.warn("警告:", stderr);
-      }
-
-      return true;
-    } catch (error) {
-      // CnameToken 可能已存在，这不是致命错误
-      console.warn("⚠ CnameToken 创建失败（可能已存在）:", error.message);
-      return false;
-    }
-  }
-
-  /**
-   * 获取当前的 Cname 配置
-   */
-  async getCurrentCnameConfig(bucket) {
-    try {
-      console.log(`\n正在获取 Bucket ${bucket} 的当前 Cname 配置...`);
-      const cmd = this.buildOssutilCommand(
-        `bucket-cname --method get oss://${bucket}`
-      );
-
-      const { stdout } = await execAsync(cmd);
-      console.log("✓ 当前 Cname 配置:");
-      console.log(stdout);
-
-      return stdout;
-    } catch (error) {
-      console.warn("⚠ 获取 Cname 配置失败:", error.message);
-      return null;
-    }
-  }
-
-  /**
    * 更新证书
    * @param {string} bucket - OSS Bucket 名称
    * @param {string} domain - 域名
@@ -748,7 +726,7 @@ class OssCertificateManager {
     email = "",
     useAliyunDNS = false,
     forceRenewal = false,
-    daysBeforeExpiry = 3
+    daysBeforeExpiry = DEFAULT_DAYS_BEFORE_EXPIRY
   ) {
     try {
       console.log(`\n开始更新域名 ${domain} 的 SSL 证书...`);
@@ -766,15 +744,13 @@ class OssCertificateManager {
           throw new Error("certbot 未安装，无法生成证书");
         }
 
-        const baseDomain = isWildcard ? domain : domain;
-
         // 检查现有证书是否有效（除非强制更新）
         let shouldGenerateNewCert = forceRenewal;
 
         if (!forceRenewal) {
           console.log("\n检查现有证书...");
           const certInfo = await this.checkCertificateValidity(
-            baseDomain,
+            domain,
             daysBeforeExpiry
           );
 
@@ -804,7 +780,7 @@ class OssCertificateManager {
         if (shouldGenerateNewCert) {
           console.log("\n开始生成新证书...");
           await this.generateCertificate(
-            baseDomain,
+            domain,
             isWildcard,
             email,
             useAliyunDNS
@@ -812,7 +788,7 @@ class OssCertificateManager {
 
           // 如果证书路径是 auto，自动查找
           if (certPath === "auto" || keyPath === "auto") {
-            const certPaths = await this.findCertbotCertPath(baseDomain);
+            const certPaths = await this.findCertbotCertPath(domain);
             if (certPaths) {
               certPath = certPaths.certPath;
               keyPath = certPaths.keyPath;
@@ -840,7 +816,6 @@ class OssCertificateManager {
       );
 
       // 执行更新命令
-      // 使用新版本 ossutil 的命令格式（使用 = 号）
       const cmd = this.buildOssutilCommand(
         `bucket-cname --method put --item certificate oss://${bucket} ${this.tempXmlFile}`
       );
@@ -851,9 +826,10 @@ class OssCertificateManager {
       console.log("执行命令:", safeCmd);
 
       try {
+        // 执行 ossutil 命令，最大缓冲区大小为 10MB，在这里由于证书不算大，所以设置为 10MB
         const { stdout, stderr } = await execAsync(cmd, {
-          maxBuffer: 1024 * 1024 * 10,
-        }); // 执行 ossutil 命令，并返回结果
+          maxBuffer: MAX_BUFFER_SIZE,
+        });
 
         console.log("✓ 证书更新成功!");
         if (stdout) console.log(stdout);
@@ -861,7 +837,7 @@ class OssCertificateManager {
       } catch (error) {
         console.error("命令执行失败:");
         console.error("退出码:", error.code);
-        console.log("error1111", error);
+        console.log("错误信息:", error);
         if (error.stdout) console.error("标准输出:", error.stdout);
         if (error.stderr) console.error("错误输出:", error.stderr);
         throw error;
@@ -886,12 +862,15 @@ class OssCertificateManager {
     let cmd = `ossutil ${baseCmd}`;
 
     if (endpoint) {
+      // -e 指定 endpoint
       cmd += ` -e ${endpoint}`;
     }
     if (accessKeyId) {
+      // -i 指定 accessKeyId
       cmd += ` -i ${accessKeyId}`;
     }
     if (accessKeySecret) {
+      // -k 指定 accessKeySecret
       cmd += ` -k ${accessKeySecret}`;
     }
 
