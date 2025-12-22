@@ -291,12 +291,14 @@ class OssCertificateManager {
    * @param {boolean} isWildcard - 是否为泛域名
    * @param {string} email - 邮箱地址（可选）
    * @param {boolean} useAliyunDNS - 是否使用阿里云 DNS 自动更新（可选）
+   * @param {boolean} forceRenewal - 是否强制重新生成证书（可选）
    */
   async generateCertificate(
     domain,
     isWildcard = false,
     email = "",
-    useAliyunDNS = false
+    useAliyunDNS = false,
+    forceRenewal = false
   ) {
     try {
       const actualDomain = isWildcard ? `*.${domain}` : domain;
@@ -346,11 +348,19 @@ class OssCertificateManager {
           ) {
             hasExistingCertPrompt = true;
             // 这里会有两个选项，1：保留现有证书，2：重新生成并覆盖现有证书
-            console.log(
-              "\n检测到已有有效证书提示，自动选择保留现有证书 (选项 1)...\n"
-            );
-            // 发送 "1" 选择保留现有证书
-            certbotProcess.stdin.write("1\n");
+            if (forceRenewal) {
+              console.log(
+                "\n检测到已有证书提示，由于启用强制更新，自动选择重新生成证书 (选项 2)...\n"
+              );
+              // 发送 "2" 选择重新生成并覆盖现有证书
+              certbotProcess.stdin.write("2\n");
+            } else {
+              console.log(
+                "\n检测到已有有效证书提示，自动选择保留现有证书 (选项 1)...\n"
+              );
+              // 发送 "1" 选择保留现有证书
+              certbotProcess.stdin.write("1\n");
+            }
           }
 
           // 检测是否出现了 TXT 记录值
@@ -452,11 +462,19 @@ class OssCertificateManager {
               text.includes("What would you like to do?"))
           ) {
             hasExistingCertPrompt = true;
-            console.log(
-              "\n检测到已有有效证书提示，自动选择保留现有证书 (选项 1)...\n"
-            );
-            // 发送 "1" 选择保留现有证书
-            certbotProcess.stdin.write("1\n");
+            if (forceRenewal) {
+              console.log(
+                "\n检测到已有证书提示，由于启用强制更新，自动选择重新生成证书 (选项 2)...\n"
+              );
+              // 发送 "2" 选择重新生成并覆盖现有证书
+              certbotProcess.stdin.write("2\n");
+            } else {
+              console.log(
+                "\n检测到已有有效证书提示，自动选择保留现有证书 (选项 1)...\n"
+              );
+              // 发送 "1" 选择保留现有证书
+              certbotProcess.stdin.write("1\n");
+            }
           }
 
           // 同样检查 stderr 中的 TXT 记录值（certbot 可能输出到 stderr）
@@ -783,7 +801,8 @@ class OssCertificateManager {
             domain,
             isWildcard,
             email,
-            useAliyunDNS
+            useAliyunDNS,
+            forceRenewal
           );
 
           // 如果证书路径是 auto，自动查找
