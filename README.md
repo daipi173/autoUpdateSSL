@@ -447,13 +447,54 @@ chmod 600 certs/*/privkey.pem
 - [OSS 自定义域名绑定](https://help.aliyun.com/document_detail/31902.html)
 - [Let's Encrypt](https://letsencrypt.org/)
 
-## 许可证
+## 📄 许可证
 
-MIT License
+本项目采用 **GNU General Public License v3.0 (GPL-3.0)** 开源许可证。
 
-## 贡献
+### ✅ 您可以：
+- ✓ 自由使用本软件（包括商业用途）
+- ✓ 修改源代码
+- ✓ 分发原始或修改后的版本
+- ✓ 在私有项目中使用
+
+### ⚠️ 但您必须：
+- **保留版权声明**：所有副本必须包含原始版权声明
+- **开源衍生作品**：如果分发修改版本，必须以 GPL-3.0 许可证开源
+- **提供源代码**：分发时必须提供完整源代码或提供获取途径
+- **声明修改**：修改后的文件必须标注修改内容
+- **相同许可证**：衍生作品必须使用相同的 GPL-3.0 许可证
+
+### 🚫 限制：
+- **不能闭源商用**：不能将本软件或其衍生作品作为闭源软件销售
+- **无担保**：本软件按"原样"提供，不提供任何明示或暗示的担保
+
+### 💼 商业授权
+
+如果您需要将本软件用于**闭源商业项目**，而不想遵守 GPL-3.0 的开源要求，请联系作者获取商业授权：
+
+- **作者**：xiaodaipi173
+- **微信公众号**：Yoho前端
+- **用途**：闭源商业授权、技术支持、定制开发
+
+### 📖 详细信息
+
+完整的许可证文本请查看 [LICENSE](./LICENSE) 文件，或访问：
+https://www.gnu.org/licenses/gpl-3.0.html
+
+---
+
+## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+### 贡献指南：
+1. Fork 本仓库
+2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启一个 Pull Request
+
+**注意**：所有贡献的代码将自动采用 GPL-3.0 许可证。
 
 ## 常见使用场景
 

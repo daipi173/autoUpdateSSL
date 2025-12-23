@@ -1,5 +1,15 @@
 #!/usr/bin/env node
 
+/**
+ * 阿里云 OSS SSL 证书自动更新工具 - 主入口文件
+ * Copyright (C) 2025 xiaodaipi173
+ * 
+ * 本程序是自由软件：您可以根据 GNU 通用公共许可证（GPL-3.0）
+ * 的条款重新分发和/或修改它。详情请参阅 LICENSE 文件。
+ * 
+ * 如需闭源商业授权，请联系作者：xiaodaipi173
+ */
+
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
