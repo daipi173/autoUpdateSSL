@@ -13,7 +13,8 @@
       "generateCert": false,
       "isWildcard": false,
       "email": "",
-      "useAliyunDNS": true
+      "useAliyunDNS": true,
+      "daysBeforeExpiry": 30
     },
     {
       "bucket": "your-bucket-name",
@@ -39,7 +40,8 @@
       "generateCert": true,
       "isWildcard": true,
       "email": "your-email@example.com",
-      "useAliyunDNS": true
+      "useAliyunDNS": true,
+      "daysBeforeExpiry": 30
     }
   ]
 }

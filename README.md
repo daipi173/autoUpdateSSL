@@ -199,6 +199,8 @@ cp config.example.json config.json
 | `domains[].isWildcard` | 是否为泛域名（生成 `*.domain.com`） | 否 | false |
 | `domains[].email` | 用于 certbot 的邮箱地址 | 否 | "" |
 | `domains[].useAliyunDNS` | 🆕 是否使用阿里云DNS自动验证（无需手动添加TXT记录） | 否 | true |
+| `domains[].daysBeforeExpiry` | ⭐ 证书过期前多少天开始更新（推荐设置为30） | 否 | 30 |
+| `domains[].forceRenewal` | 是否强制重新生成证书（无视有效期） | 否 | false |
 
 ## 使用方法
 
@@ -579,5 +581,256 @@ npm start
 ```
 
 一次性更新多个域名的证书到不同的 Bucket。
+
+### 场景 5: 设置定时任务自动更新（生产环境推荐）
+
+如果你想让服务器自动定时执行证书更新，可以使用 Linux 的 cron 定时任务。这样可以实现证书的自动化管理，无需手动干预。
+
+**推荐配置方案：**
+
+#### 方案A：30天阈值 + 每周执行 ⭐ **最推荐**
+
+这是最推荐的生产环境配置方案，既保证了证书及时更新，又避免了频繁的不必要操作。
+
+##### 📋 方案说明
+
+**工作原理：**
+- 定时任务每周执行一次（如每周一凌晨3点）
+- 脚本每次运行时会检查证书的剩余有效期
+- **只有当证书剩余有效期 ≤ 30 天时，才会执行更新操作**
+- 如果证书还很新（>30天），脚本会跳过更新，避免不必要的 API 调用
+
+**为什么推荐30天阈值？**
+- ✅ Let's Encrypt 证书有效期为 90 天
+- ✅ 30 天提供了充足的续期缓冲时间
+- ✅ 即使某次执行失败，还有多次重试机会
+- ✅ 符合 Let's Encrypt 官方推荐的最佳实践
+
+**为什么选择每周执行？**
+- ✅ 频率适中，不会给服务器带来压力
+- ✅ 保证在证书到期前有多次检查机会
+- ✅ 即使连续几次失败，也有足够时间人工介入
+- ✅ 避免每天执行造成的日志冗余
+
+##### 🔧 配置步骤
+
+**第一步：配置证书更新阈值**
+
+编辑你的 `config.json` 文件，为每个域名添加 `daysBeforeExpiry` 配置：
+
+```json
+{
+  "accessKeyId": "your-access-key-id",
+  "accessKeySecret": "your-access-key-secret",
+  "endpoint": "oss-cn-hangzhou.aliyuncs.com",
+  "domains": [
+    {
+      "bucket": "my-bucket",
+      "domain": "example.com",
+      "certPath": "auto",
+      "keyPath": "auto",
+      "generateCert": true,
+      "isWildcard": false,
+      "email": "admin@example.com",
+      "useAliyunDNS": true,
+      "daysBeforeExpiry": 30  // ⭐ 证书剩余30天或更少时才更新，不写默认也是30天
+    },
+    {
+      "bucket": "another-bucket",
+      "domain": "api.example.com",
+      "certPath": "auto",
+      "keyPath": "auto",
+      "generateCert": false,
+      "daysBeforeExpiry": 30  // 多个域名都可以设置
+    }
+  ]
+}
+```
+
+> **💡 提示：** 如果不设置 `daysBeforeExpiry`，默认值为 30 天。你可以根据实际需求调整这个值（建议范围：20-40天）。
+
+**第二步：设置定时任务**
+
+1. **赋予执行脚本权限：**
+
+```bash
+chmod +x /root/autoUpdateSSL/run-update.sh
+```
+
+2. **编辑 crontab 配置：**
+
+```bash
+crontab -e
+```
+
+3. **添加定时任务配置：**
+
+```bash
+# 每周一凌晨 3:00 执行证书检查和更新
+0 3 * * 1 /root/autoUpdateSSL/run-update.sh >> /var/log/ssl-update.log 2>&1
+```
+
+**其他常用的 crontab 时间配置：**
+
+```bash
+# 每周日凌晨 2:00 执行
+0 2 * * 0 /root/autoUpdateSSL/run-update.sh >> /var/log/ssl-update.log 2>&1
+
+# 每周三凌晨 4:00 执行
+0 4 * * 3 /root/autoUpdateSSL/run-update.sh >> /var/log/ssl-update.log 2>&1
+
+# 每月1号凌晨 2:00 执行（如果你想降低频率）
+0 2 1 * * /root/autoUpdateSSL/run-update.sh >> /var/log/ssl-update.log 2>&1
+```
+
+> **📌 注意：** 记得替换 `/root/autoUpdateSSL/` 为你的实际安装路径。
+
+##### 📊 验证配置
+
+**1. 查看已设置的定时任务：**
+
+```bash
+crontab -l
+```
+
+**2. 手动测试执行：**
+
+```bash
+# 直接运行脚本测试
+/root/autoUpdateSSL/run-update.sh
+
+# 或者进入目录执行
+cd /root/autoUpdateSSL
+npm start
+```
+
+**3. 查看执行日志：**
+
+```bash
+# 查看最近的执行日志
+tail -f /var/log/ssl-update.log
+
+# 查看最近 50 行日志
+tail -n 50 /var/log/ssl-update.log
+
+# 搜索特定域名的更新记录
+grep "example.com" /var/log/ssl-update.log
+```
+
+##### 📋 执行输出示例
+
+**情况1：证书还未到更新时间（剩余60天）**
+
+```
+=== SSL 证书自动更新开始 ===
+时间: 2025-12-23 03:00:01
+
+检查域名: example.com
+证书剩余有效期: 60 天
+更新阈值: 30 天
+状态: ⏭️  跳过更新（证书还很新）
+
+=== 执行完成 ===
+```
+
+**情况2：证书需要更新（剩余25天）**
+
+```
+=== SSL 证书自动更新开始 ===
+时间: 2025-12-23 03:00:01
+
+检查域名: example.com
+证书剩余有效期: 25 天
+更新阈值: 30 天
+状态: 🔄 开始更新证书...
+
+✓ 证书生成成功
+✓ 证书已更新到 OSS
+✓ 更新完成！
+
+=== 执行完成 ===
+```
+
+##### ⚠️ 注意事项
+
+1. **确保脚本有执行权限：**
+   ```bash
+   ls -la /root/autoUpdateSSL/run-update.sh
+   # 应该显示 -rwxr-xr-x
+   ```
+
+2. **检查 Node.js 环境：**
+   - 确保系统全局可以访问 `node` 和 `npm` 命令
+   - 如果使用 nvm，可能需要在脚本中添加 nvm 初始化
+
+3. **日志管理：**
+   - 定期清理日志文件，避免占用过多磁盘空间
+   - 可以使用 logrotate 进行自动日志轮转
+
+4. **监控告警：**
+   - 建议配置监控脚本，当证书更新失败时发送邮件或短信通知
+   - 可以监控日志中的错误关键词
+
+##### 🔍 故障排查
+
+**定时任务没有执行？**
+
+1. 检查 cron 服务是否运行：
+   ```bash
+   systemctl status cron    # Debian/Ubuntu
+   systemctl status crond   # CentOS/RHEL
+   ```
+
+2. 查看 cron 执行日志：
+   ```bash
+   grep CRON /var/log/syslog    # Debian/Ubuntu
+   grep CRON /var/log/cron      # CentOS/RHEL
+   ```
+
+3. 确认脚本路径正确：
+   ```bash
+   which node
+   # 如果 cron 环境找不到 node，需要在脚本中使用绝对路径
+   ```
+
+**脚本执行但没有更新？**
+
+- 检查证书剩余有效期是否 ≤ 阈值
+- 查看日志文件中的错误信息
+- 手动运行脚本查看详细输出
+
+##### 💡 高级技巧
+
+**定制化阈值策略：**
+
+你可以为不同域名设置不同的更新阈值：
+
+```json
+{
+  "domains": [
+    {
+      "domain": "important-site.com",
+      "daysBeforeExpiry": 40  // 重要网站提前40天更新，更保守
+    },
+    {
+      "domain": "test-site.com",
+      "daysBeforeExpiry": 20  // 测试网站20天更新即可
+    }
+  ]
+}
+```
+
+**强制更新配置：**
+
+如果需要立即更新证书（忽略阈值检查），可以临时添加：
+
+```json
+{
+  "domain": "example.com",
+  "forceRenewal": true  // 强制重新生成证书
+}
+```
+
+执行一次后记得移除此配置，避免每次都强制更新。
 
 

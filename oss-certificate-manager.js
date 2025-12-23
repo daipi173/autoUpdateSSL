@@ -30,7 +30,7 @@ import { exec, spawn } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec); // 将 exec 函数转换为异步函数
-const DEFAULT_DAYS_BEFORE_EXPIRY = 3; // 证书过期前多少天开始更新（默认3天）
+const DEFAULT_DAYS_BEFORE_EXPIRY = 30; // 证书过期前多少天开始更新（默认30天）
 const DEFAULT_MAX_RETRIES = 15; // 最大重试次数（默认15次）
 const DEFAULT_CERTBOT_PATH = "/etc/letsencrypt/live"; // certbot 默认证书路径
 const DEFAULT_CERTBOT_CERT_FILE = "fullchain.pem"; // certbot 默认证书文件
@@ -584,7 +584,7 @@ class OssCertificateManager {
   /**
    * 检查证书是否存在且有效
    * @param {string} domain - 域名
-   * @param {number} daysBeforeExpiry - 过期前多少天认为需要更新（默认3天）
+   * @param {number} daysBeforeExpiry - 过期前多少天认为需要更新（默认30天）
    * @returns {Object|null} 返回证书信息或 null
    */
   async checkCertificateValidity(
