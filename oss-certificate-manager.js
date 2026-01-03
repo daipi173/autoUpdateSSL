@@ -298,8 +298,43 @@ class OssCertificateManager {
    */
   async checkCertbotInstalled() {
     try {
-      const { stdout } = await execAsync("certbot --version");
+      // 首先尝试使用 which/where 命令查找 certbot 的完整路径
+      let certbotPath;
+      try {
+        const { stdout } = await execAsync("which certbot || where certbot");
+        certbotPath = stdout.trim().split('\n')[0]; // 获取第一个路径
+      } catch {
+        // 如果 which 命令失败，尝试常见的安装路径
+        const commonPaths = [
+          '/usr/bin/certbot',
+          '/usr/local/bin/certbot',
+          '/opt/certbot/bin/certbot',
+          '/snap/bin/certbot',
+          'certbot' // 最后尝试直接使用命令名
+        ];
+        
+        for (const path of commonPaths) {
+          try {
+            await execAsync(`${path} --version`);
+            certbotPath = path;
+            break;
+          } catch {
+            continue;
+          }
+        }
+      }
+
+      if (!certbotPath) {
+        throw new Error('certbot not found');
+      }
+
+      // 验证 certbot 是否可用
+      const { stdout } = await execAsync(`${certbotPath} --version`);
       console.log("✓ certbot 已安装:", stdout.trim());
+      console.log("  certbot 路径:", certbotPath);
+      
+      // 保存 certbot 路径供后续使用
+      this.certbotPath = certbotPath;
       return true;
     } catch (error) {
       console.warn("⚠ certbot 未安装，将跳过自动生成证书功能");
@@ -346,7 +381,9 @@ class OssCertificateManager {
       ];
 
       return new Promise((resolve, reject) => {
-        const certbotProcess = spawn("certbot", args, {
+        // 使用保存的 certbot 完整路径，如果不存在则使用默认命令名
+        const certbotCmd = this.certbotPath || "certbot";
+        const certbotProcess = spawn(certbotCmd, args, {
           stdio: ["pipe", "pipe", "pipe"], // 使用管道模式以捕获输出
         });
 

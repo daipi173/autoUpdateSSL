@@ -793,6 +793,30 @@ grep "example.com" /var/log/ssl-update.log
    # 如果 cron 环境找不到 node，需要在脚本中使用绝对路径
    ```
 
+**脚本执行但显示 certbot 未安装？**
+
+这是一个常见的环境变量问题。当通过 cron 或重定向方式执行脚本时，shell 可能没有加载完整的 PATH 环境变量，导致找不到 certbot 命令。
+
+**解决方案：**
+
+1. **首先尝试查找 certbot 路径**：
+   ```bash
+   which certbot
+   # 输出示例：/usr/bin/certbot
+   ```
+
+2. **如果没有找到再接着查找常见路径**：会尝试在常见路径中查找 certbot：
+   - `/usr/bin/certbot`
+   - `/usr/local/bin/certbot`
+   - `/opt/certbot/bin/certbot`
+   - `/snap/bin/certbot`
+
+3. **如何测试安装路径是否成功？**：可以尝试更改对应的执行脚本，比如在执行时间往后一分钟，比如当前是周三下午五点中，那么就可以将 cron 时间修改为周三下午五点零一分
+先执行下面指令：
+crontab -e
+然后修改内容：
+01 17 03 01 * /root/autoUpdateSSL/run-update.sh >> /var/log/ssl-update.log 2>&1
+
 **脚本执行但没有更新？**
 
 - 检查证书剩余有效期是否 ≤ 阈值
